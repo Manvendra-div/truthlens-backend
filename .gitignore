@@ -1,0 +1,44 @@
+# Python
+# Generic Python Git ignore template from GitHub:
+# Source: https://github.com
+#
+# Byte-code files
+*.pyc
+__pycache__
+
+# IDE-specific files (VS Code, PyCharm)
+.vscode/
+.idea/
+
+# Virtual environment
+# The name of the virtual environment can vary, common ones are 'venv', 'env'
+venv/
+env/
+.venv/
+.env
+
+# Distribution and packaging
+dist/
+build/
+*.egg-info/
+htmlcov/
+.coverage
+
+# Tests and documentation
+.pytest_cache/
+test.db
+log.txt
+docs_build/
+site_build/
+
+# OS-specific files
+.DS_Store # macOS
+
+# Pip-specific files
+Pipfile.lock # if using Pipenv
+
+# Sensitive information (ensure secret files are never tracked)
+*.sqlite3
+secrets.json
+config.ini
+truthlens_fake_news_model

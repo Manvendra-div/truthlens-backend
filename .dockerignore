@@ -1,0 +1,12 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+.git
+.gitignore
+node_modules
+truthlens_fake_news_model/
+*.safetensors
+*.bin
+*.zip
