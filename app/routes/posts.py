@@ -9,6 +9,8 @@ from app.models.user import User
 
 from app.schemas.post_schema import PostCreateSchema
 from app.utils.security import get_current_user
+from app.services.dedup_service import check_duplicate, compute_hash
+from fastapi import HTTPException
 
 from app.services.model_service import predict_news
 
@@ -25,6 +27,17 @@ def create_post(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
+    result = check_duplicate(db, post.title, post.content)
+    if result.is_duplicate:
+        detail = {
+            "error": "duplicate_post",
+            "kind": result.kind,
+            "message": "A very similar article already exists on the platform.",
+        }
+        if result.duplicate_of:
+            detail["duplicate_of_post_id"] = result.duplicate_of
+        raise HTTPException(status_code=409, detail=detail)
+
     # Run AI prediction
     prediction = predict_news(post.content)
 

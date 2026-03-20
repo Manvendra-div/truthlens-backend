@@ -1,23 +1,29 @@
-from passlib.context import CryptContext
 import time
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
-
+import hashlib
+import base64
+import bcrypt
 from app.database import get_db
 from app.models.user import User
+
 
 SECRET_KEY = "hrcgilkmjaXq/mEUX6U7/JycASopaxNRtBUxc1CHqIs="
 ALGORITHM = "HS256"
 
-pwd_context = CryptContext(schemes=["bcrypt"])
 
-def hash_password(password: str):
-    return pwd_context.hash(password)
+def _prehash(password: str) -> bytes:
+    """SHA-256 prehash → always 44 bytes, well under bcrypt's 72-byte limit."""
+    digest = hashlib.sha256(password.encode("utf-8")).digest()
+    return base64.b64encode(digest)  # returns bytes, always 44 chars
 
-def verify_password(password: str, hashed: str):
-    return pwd_context.verify(password, hashed)
+def hash_password(password: str) -> str:
+    hashed = bcrypt.hashpw(_prehash(password), bcrypt.gensalt())
+    return hashed.decode("utf-8")
 
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(_prehash(plain), hashed.encode("utf-8"))
 
 def create_access_token(user_id: int):
 

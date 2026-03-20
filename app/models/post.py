@@ -21,3 +21,5 @@ class Post(Base):
     author_id = Column(Integer, ForeignKey("users.id"))
 
     author = relationship("User")
+    content_hash = Column(String(64), nullable=True, index=True)   # SHA-256 hex
+    content_vector = Column(Text, nullable=True) 

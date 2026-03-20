@@ -9,5 +9,5 @@ class User(Base):
     email = Column(String, unique=True)
     username = Column(String)
     password_hash = Column(String, nullable=True)
-    google_id = Column(String, nullable=True)
+    google_id = Column(String, nullable=True, unique=True, index=True)
     comments = relationship("Comment", back_populates="user")
