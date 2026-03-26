@@ -1,12 +1,11 @@
+.venv
 __pycache__
 *.pyc
 *.pyo
 *.pyd
-.venv
+.env
 .git
 .gitignore
-node_modules
-truthlens_fake_news_model/
-*.safetensors
-*.bin
-*.zip
+alembic/versions/__pycache__
+*.egg-info
+.pytest_cache

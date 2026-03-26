@@ -6,6 +6,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+ENV = os.getenv("ENV")
+
+if ENV=="DEV":
+    print(DATABASE_URL)
 
 engine = create_engine(DATABASE_URL)
 

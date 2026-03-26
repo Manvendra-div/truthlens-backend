@@ -1,21 +1,27 @@
-FROM python:3.11-slim
+# backend/Dockerfile
+
+FROM python:3.14-slim
+
+# system deps needed for psycopg2, bcrypt, and torch
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# install system deps
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# copy requirements
+# copy and install dependencies first (layer caching)
 COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-RUN pip install --no-cache-dir -r requirements.txt
-
-# copy backend code
+# copy the rest of the app
 COPY . .
 
 # expose FastAPI port
 EXPOSE 8000
 
+# run with uvicorn
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
