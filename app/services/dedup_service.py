@@ -1,7 +1,6 @@
 # backend/app/services/dedup_service.py
 
 import hashlib
-import json
 import re
 from typing import Optional
 

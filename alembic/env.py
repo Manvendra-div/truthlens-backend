@@ -5,10 +5,6 @@ from sqlalchemy import pool
 
 from alembic import context
 from app.database import Base
-from app.models.user import User
-from app.models.post import Post
-from app.models.comment import Comment
-from app.models.like import Like
 
 
 # this is the Alembic Config object, which provides
