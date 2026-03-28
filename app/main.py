@@ -64,6 +64,6 @@ def root():
     }
 
 
-@app.get("/health")
+@app.get("/kaithhealth")
 def health_check():
     return {"status": "healthy"}
