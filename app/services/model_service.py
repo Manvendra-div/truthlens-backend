@@ -2,6 +2,7 @@ import torch
 from transformers import BertTokenizer, BertForSequenceClassification
 from huggingface_hub import snapshot_download
 from pathlib import Path
+import os
 
 MODEL_REPO = "manvendra2004/truthlens-fake-news-model"
 LOCAL_PATH = Path(__file__).resolve().parent.parent.parent / "truthlens_fake_news_model"
@@ -14,6 +15,7 @@ def _load_model():
         snapshot_download(
             repo_id=MODEL_REPO,
             local_dir=str(LOCAL_PATH),
+            token=os.getenv("HF_TOKEN")
         )
         print("[model_service] Model downloaded successfully.")
     else:
