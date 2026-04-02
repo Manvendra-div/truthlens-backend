@@ -13,10 +13,12 @@ from app.routes import auth
 import os
 from dotenv import load_dotenv
 from app.scheduler import start_scheduler
+from app.services.model_service import lifespan
 
 load_dotenv()
 
 ENV = os.getenv("ENV", "dev")
+
 
 origins = (
     ["http://localhost:3000"]
@@ -29,8 +31,10 @@ user.Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="TruthLens API",
     description="AI-powered fake news detection and community feed platform",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
+
 @app.on_event("startup")
 def startup_event():
     start_scheduler()
