@@ -21,10 +21,10 @@ ENV = os.getenv("ENV", "dev")
 
 
 origins = (
-    ["http://localhost:3000"]
-    if ENV == "dev"
-    else ["*"]
+    ["http://localhost:3000","*","https://truthlens.manvendrasingh.net.in"]
 )
+
+print(origins)
 
 
 user.Base.metadata.create_all(bind=engine)
