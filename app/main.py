@@ -35,10 +35,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-@app.on_event("startup")
-def startup_event():
-    start_scheduler()
-
 
 # Allow frontend requests
 app.add_middleware(
@@ -54,6 +50,11 @@ app.include_router(predict.router)
 app.include_router(posts.router)
 app.include_router(auth.router)
 app.include_router(comments.router)
+
+
+@app.on_event("startup")
+def startup_event():
+    start_scheduler()
 
 @app.get("/db-test")
 def db_test(db: Session = Depends(get_db)):
