@@ -5,7 +5,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as grequests
 import os
 from app.models.user import User
-from app.schemas.auth_schema import SignupSchema, LoginSchema,GoogleTokenPayload
+from app.schemas.auth_schema import SignupSchema, LoginSchema, GoogleTokenPayload
 from app.utils.security import hash_password, verify_password, create_access_token
 from app.utils.security import get_current_user
 
@@ -16,13 +16,13 @@ router = APIRouter(
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
+
 @router.post("/google")
-def google_login(
+def google_login(   # ❗ removed async
     payload: GoogleTokenPayload,
     response: Response,
     db: Session = Depends(get_db)
 ):
-    # ── verify Google token ───────────────────────────────────────
     try:
         info = id_token.verify_oauth2_token(
             payload.token,
@@ -32,54 +32,52 @@ def google_login(
     except ValueError as e:
         raise HTTPException(status_code=401, detail=f"Invalid Google token: {str(e)}")
 
-    email     = info.get("email")
-    name      = info.get("name", email.split("@")[0])
-    google_id = info.get("sub")   # unique Google user ID
+    email = info.get("email")
+    name = info.get("name", email.split("@")[0])
+    google_id = info.get("sub")
 
     if not email:
         raise HTTPException(status_code=400, detail="Google account has no email")
 
-    # ── find or create user ───────────────────────────────────────
+    # ✅ FIX: use sync query
     user = db.query(User).filter(User.email == email).first()
 
     if not user:
-        # brand new user — create from Google profile
         user = User(
-            username      = name,
-            email         = email,
-            google_id     = google_id,
-            password_hash = "",   # Google users have no password
+            username=name,
+            email=email,
+            google_id=google_id,
+            password_hash="",
         )
         db.add(user)
         db.commit()
         db.refresh(user)
 
     elif not user.google_id:
-        # existing email/password user — link Google account
         user.google_id = google_id
         db.commit()
 
-    # ── issue your normal JWT ─────────────────────────────────────
     access_token = create_access_token(user.id)
 
     response.set_cookie(
-    key="access_token",
-    value=access_token,
-    httponly=True,
-    samesite="lax",
-    secure=False,      # False for localhost HTTP
-    max_age=86400,     # 1 day
-    path="/",          # ← make sure cookie is sent on all routes
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        samesite="lax",
+        secure=False,
+        max_age=86400,
+        path="/",
     )
 
     return {
         "message": "logged in",
         "user": {
-            "id":       user.id,
+            "id": user.id,
             "username": user.username,
-            "email":    user.email,
+            "email": user.email,
         }
     }
+
 
 @router.post("/signup")
 def signup(user: SignupSchema, db: Session = Depends(get_db)):
@@ -101,14 +99,14 @@ def signup(user: SignupSchema, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
-    return {
-        "message": "User created successfully"
-    }
+    return {"message": "User created successfully"}
+
 
 @router.post("/login")
 def login(user: LoginSchema, response: Response, db: Session = Depends(get_db)):
 
     db_user = db.query(User).filter(User.email == user.email).first()
+
     if not db_user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -116,6 +114,7 @@ def login(user: LoginSchema, response: Response, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_access_token(db_user.id)
+
     response.set_cookie(
         key="access_token",
         value=token,
@@ -130,11 +129,13 @@ def login(user: LoginSchema, response: Response, db: Session = Depends(get_db)):
         "token_type": "bearer"
     }
 
+
 @router.post("/logout")
 def logout(response: Response):
     response.delete_cookie("access_token")
     return {"message": "Logged out"}
 
+
 @router.get("/me")
-def check_auth(current_user = Depends(get_current_user)):
+def check_auth(current_user=Depends(get_current_user)):
     return current_user

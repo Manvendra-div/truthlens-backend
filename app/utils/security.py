@@ -1,6 +1,7 @@
 import time
 from fastapi import Depends, HTTPException, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from jose import jwt, JWTError
 import hashlib
 import base64
@@ -14,20 +15,21 @@ ALGORITHM = "HS256"
 
 
 def _prehash(password: str) -> bytes:
-    """SHA-256 prehash → always 44 bytes, well under bcrypt's 72-byte limit."""
     digest = hashlib.sha256(password.encode("utf-8")).digest()
-    return base64.b64encode(digest)  # returns bytes, always 44 chars
+    return base64.b64encode(digest)
+
 
 def hash_password(password: str) -> str:
     hashed = bcrypt.hashpw(_prehash(password), bcrypt.gensalt())
     return hashed.decode("utf-8")
 
+
 def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(_prehash(plain), hashed.encode("utf-8"))
 
-def create_access_token(user_id: int):
 
-    expire = int(time.time()) + (60 * 60 * 24)  # 24 hours
+def create_access_token(user_id: int):
+    expire = int(time.time()) + (60 * 60 * 24)
 
     payload = {
         "user_id": user_id,
@@ -35,14 +37,14 @@ def create_access_token(user_id: int):
     }
 
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-
     return token
 
-def get_current_user(
-    request: Request,
-    db: Session = Depends(get_db)
-):
 
+# ✅ FULLY ASYNC (correct way)
+async def get_current_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
     token = request.cookies.get("access_token")
 
     if not token:
@@ -55,7 +57,11 @@ def get_current_user(
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    user = db.query(User).filter(User.id == user_id).first()
+    # ✅ Proper async DB query
+    result = await db.execute(
+        select(User).where(User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
 
     if not user:
         raise HTTPException(status_code=401, detail="User not found")

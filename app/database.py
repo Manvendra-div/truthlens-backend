@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 from dotenv import load_dotenv
@@ -12,17 +12,16 @@ print(DATABASE_URL)
 
 Base = declarative_base()
 
-engine = create_engine(DATABASE_URL)
+engine = create_async_engine(DATABASE_URL, echo=False)
 
-SessionLocal = sessionmaker(
+AsyncSessionLocal = sessionmaker(
+    bind=engine,
+    class_=AsyncSession,       # ✅ async session
     autocommit=False,
     autoflush=False,
-    bind=engine
-    )
+    expire_on_commit=False     # ✅ needed for async — prevents lazy load errors
+)
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def get_db():
+    async with AsyncSessionLocal() as session:  # ✅ properly opens and closes
+        yield session

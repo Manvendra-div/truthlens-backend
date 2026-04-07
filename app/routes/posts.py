@@ -1,17 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from datetime import datetime
-
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy.orm import joinedload
+from datetime import datetime, timezone
 from app.database import get_db
 from app.models.post import Post
 from app.models.comment import Comment
 from app.models.user import User
-
 from app.schemas.post_schema import PostCreateSchema
 from app.utils.security import get_current_user
 from app.services.dedup_service import check_duplicate, compute_hash
-from fastapi import HTTPException
-
 from app.services.model_service import predict_news
 
 router = APIRouter(prefix="/posts", tags=["posts"])
@@ -22,12 +20,12 @@ router = APIRouter(prefix="/posts", tags=["posts"])
 # ===============================
 
 @router.post("/")
-def create_post(
-        post: PostCreateSchema,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
+async def create_post(
+    post: PostCreateSchema,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    result = check_duplicate(db, post.title, post.content)
+    result = await check_duplicate(db, post.title, post.content)
     if result.is_duplicate:
         detail = {
             "error": "duplicate_post",
@@ -38,7 +36,6 @@ def create_post(
             detail["duplicate_of_post_id"] = result.duplicate_of
         raise HTTPException(status_code=409, detail=detail)
 
-    # Run AI prediction
     prediction = predict_news(post.content)
 
     new_post = Post(
@@ -48,12 +45,13 @@ def create_post(
         prediction=prediction["label"],
         fake_confidence=prediction["fake_confidence"],
         real_confidence=prediction["real_confidence"],
-        created_at=datetime.utcnow()
+        content_hash=compute_hash(post.title, post.content),
+        created_at=datetime.now(timezone.utc)
     )
 
     db.add(new_post)
-    db.commit()
-    db.refresh(new_post)
+    await db.commit()
+    await db.refresh(new_post)
 
     return {"message": "Post created successfully"}
 
@@ -63,17 +61,22 @@ def create_post(
 # ===============================
 
 @router.get("/")
-def get_posts(db: Session = Depends(get_db)):
-    posts = db.query(Post).order_by(Post.created_at.desc()).all()
+async def get_posts(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Post)
+        .options(joinedload(Post.author))
+        .order_by(Post.created_at.desc())
+    )
+    posts = result.scalars().all()
 
-    result = []
-
+    output = []
     for post in posts:
-        comments_count = db.query(Comment) \
-            .filter(Comment.post_id == post.id) \
-            .count()
+        comments_result = await db.execute(
+            select(Comment).where(Comment.post_id == post.id)
+        )
+        comments_count = len(comments_result.scalars().all())
 
-        result.append({
+        output.append({
             "id": post.id,
             "title": post.title,
             "content": post.content,
@@ -91,7 +94,7 @@ def get_posts(db: Session = Depends(get_db)):
             "created_at": post.created_at
         })
 
-    return result
+    return output
 
 
 # ===============================
@@ -99,15 +102,21 @@ def get_posts(db: Session = Depends(get_db)):
 # ===============================
 
 @router.get("/{post_id}")
-def get_post(post_id: int, db: Session = Depends(get_db)):
-    post = db.query(Post).filter(Post.id == post_id).first()
+async def get_post(post_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Post)
+        .options(joinedload(Post.author))
+        .where(Post.id == post_id)
+    )
+    post = result.scalar_one_or_none()
 
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
 
-    comments_count = db.query(Comment) \
-        .filter(Comment.post_id == post.id) \
-        .count()
+    comments_result = await db.execute(
+        select(Comment).where(Comment.post_id == post.id)
+    )
+    comments_count = len(comments_result.scalars().all())
 
     return {
         "id": post.id,
@@ -133,12 +142,13 @@ def get_post(post_id: int, db: Session = Depends(get_db)):
 # ===============================
 
 @router.delete("/{post_id}")
-def delete_post(
-        post_id: int,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
+async def delete_post(
+    post_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    post = db.query(Post).filter(Post.id == post_id).first()
+    result = await db.execute(select(Post).where(Post.id == post_id))
+    post = result.scalar_one_or_none()
 
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
@@ -146,7 +156,7 @@ def delete_post(
     if post.author_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    db.delete(post)
-    db.commit()
+    await db.delete(post)
+    await db.commit()
 
     return {"message": "Post deleted successfully"}

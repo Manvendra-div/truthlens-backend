@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine
-from app.models import user
 from app.routes import predict
 from app.routes import comments
 # from app.routes import likes
@@ -13,7 +12,12 @@ from app.routes import auth
 import os
 from dotenv import load_dotenv
 from app.scheduler import start_scheduler
-from app.services.model_service import lifespan
+from contextlib import asynccontextmanager
+from app.services.model_service import load_model, cleanup_model
+from app.scheduler import start_scheduler
+from app.database import Base
+import threading
+
 
 load_dotenv()
 
@@ -26,8 +30,22 @@ origins = (
 
 print(origins)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
-user.Base.metadata.create_all(bind=engine)
+    thread = threading.Thread(target=load_model, daemon=True)
+    thread.start()
+
+    start_scheduler()
+
+    yield
+
+    # Shutdown
+    cleanup_model()
+
 app = FastAPI(
     title="TruthLens API",
     description="AI-powered fake news detection and community feed platform",
@@ -51,10 +69,6 @@ app.include_router(posts.router)
 app.include_router(auth.router)
 app.include_router(comments.router)
 
-
-@app.on_event("startup")
-def startup_event():
-    start_scheduler()
 
 @app.get("/db-test")
 def db_test(db: Session = Depends(get_db)):
