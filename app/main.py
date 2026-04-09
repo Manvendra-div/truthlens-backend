@@ -16,16 +16,17 @@ from app.services.model_service import load_model, cleanup_model
 from app.scheduler import start_scheduler
 from app.database import Base
 import threading
+import os
 
 
 load_dotenv()
 
+ENV = os.getenv("ENV")
 
+origins = "http://localhost:3000"
 
-origins = [
-    "http://localhost:3000",
-    "https://truthlens.manvendrasingh.net.in",
-]
+if ENV=="PROD":
+    origins = "https://truthlens.manvendrasingh.net.in"
 
 print(origins)
 

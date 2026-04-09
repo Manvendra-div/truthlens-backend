@@ -134,12 +134,22 @@ async def login(user: LoginSchema, response: Response, db: AsyncSession = Depend
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_access_token(db_user.id)
-
-    response.set_cookie(
+    
+    if ENV=="PROD":
+        response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
-        samesite="lax",
+        samesite="none",
+        secure=False,
+        max_age=86400
+    )
+    else:
+        response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        samesite="none",
         secure=False,
         max_age=86400
     )
