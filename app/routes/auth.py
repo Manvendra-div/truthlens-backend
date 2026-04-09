@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from app.database import get_db
 from google.oauth2 import id_token
 from google.auth.transport import requests as grequests
@@ -8,6 +9,8 @@ from app.models.user import User
 from app.schemas.auth_schema import SignupSchema, LoginSchema, GoogleTokenPayload
 from app.utils.security import hash_password, verify_password, create_access_token
 from app.utils.security import get_current_user
+import asyncio
+from functools import partial
 
 router = APIRouter(
     prefix="/auth",
@@ -18,16 +21,22 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
 
 @router.post("/google")
-def google_login(   # ❗ removed async
+async def google_login(
     payload: GoogleTokenPayload,
     response: Response,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     try:
-        info = id_token.verify_oauth2_token(
-            payload.token,
-            grequests.Request(),
-            GOOGLE_CLIENT_ID,
+        # id_token.verify_oauth2_token is blocking — run in thread pool
+        loop = asyncio.get_event_loop()
+        info = await loop.run_in_executor(
+            None,
+            partial(
+                id_token.verify_oauth2_token,
+                payload.token,
+                grequests.Request(),
+                GOOGLE_CLIENT_ID,
+            )
         )
     except ValueError as e:
         raise HTTPException(status_code=401, detail=f"Invalid Google token: {str(e)}")
@@ -39,8 +48,8 @@ def google_login(   # ❗ removed async
     if not email:
         raise HTTPException(status_code=400, detail="Google account has no email")
 
-    # ✅ FIX: use sync query
-    user = db.query(User).filter(User.email == email).first()
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
 
     if not user:
         user = User(
@@ -50,12 +59,12 @@ def google_login(   # ❗ removed async
             password_hash="",
         )
         db.add(user)
-        db.commit()
-        db.refresh(user)
+        await db.commit()
+        await db.refresh(user)
 
     elif not user.google_id:
         user.google_id = google_id
-        db.commit()
+        await db.commit()
 
     access_token = create_access_token(user.id)
 
@@ -80,9 +89,9 @@ def google_login(   # ❗ removed async
 
 
 @router.post("/signup")
-def signup(user: SignupSchema, db: Session = Depends(get_db)):
-
-    existing_user = db.query(User).filter(User.email == user.email).first()
+async def signup(user: SignupSchema, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == user.email))
+    existing_user = result.scalar_one_or_none()
 
     if existing_user:
         raise HTTPException(status_code=400, detail="User already exists")
@@ -96,16 +105,16 @@ def signup(user: SignupSchema, db: Session = Depends(get_db)):
     )
 
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    await db.commit()
+    await db.refresh(new_user)
 
     return {"message": "User created successfully"}
 
 
 @router.post("/login")
-def login(user: LoginSchema, response: Response, db: Session = Depends(get_db)):
-
-    db_user = db.query(User).filter(User.email == user.email).first()
+async def login(user: LoginSchema, response: Response, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == user.email))
+    db_user = result.scalar_one_or_none()
 
     if not db_user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -131,11 +140,11 @@ def login(user: LoginSchema, response: Response, db: Session = Depends(get_db)):
 
 
 @router.post("/logout")
-def logout(response: Response):
+async def logout(response: Response):
     response.delete_cookie("access_token")
     return {"message": "Logged out"}
 
 
 @router.get("/me")
-def check_auth(current_user=Depends(get_current_user)):
+async def check_auth(current_user=Depends(get_current_user)):
     return current_user

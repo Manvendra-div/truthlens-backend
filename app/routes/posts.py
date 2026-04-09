@@ -46,7 +46,7 @@ async def create_post(
         fake_confidence=prediction["fake_confidence"],
         real_confidence=prediction["real_confidence"],
         content_hash=compute_hash(post.title, post.content),
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.utcnow()
     )
 
     db.add(new_post)
