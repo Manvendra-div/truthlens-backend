@@ -12,7 +12,7 @@ print(DATABASE_URL)
 
 Base = declarative_base()
 
-engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(DATABASE_URL, echo=False, connect_args={"ssl": "require"})
 
 AsyncSessionLocal = sessionmaker(
     bind=engine,
