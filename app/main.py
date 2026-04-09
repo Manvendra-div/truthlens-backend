@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.routes import posts
 from app.routes import auth
-import os
 from dotenv import load_dotenv
 from app.scheduler import start_scheduler
 from contextlib import asynccontextmanager
@@ -21,12 +20,12 @@ import threading
 
 load_dotenv()
 
-ENV = os.getenv("ENV", "dev")
 
 
-origins = (
-    ["http://localhost:3000","*","https://truthlens.manvendrasingh.net.in"]
-)
+origins = [
+    "http://localhost:3000",
+    "https://truthlens.manvendrasingh.net.in",
+]
 
 print(origins)
 

@@ -18,7 +18,7 @@ router = APIRouter(
 )
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-
+ENV = os.getenv("ENV")
 
 @router.post("/google")
 async def google_login(
@@ -67,8 +67,19 @@ async def google_login(
         await db.commit()
 
     access_token = create_access_token(user.id)
-
-    response.set_cookie(
+    
+    if ENV=="PROD":
+        response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        samesite="none",
+        secure=False,
+        max_age=86400,
+        path="/",
+        )
+    else:
+        response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
@@ -76,7 +87,7 @@ async def google_login(
         secure=False,
         max_age=86400,
         path="/",
-    )
+        )
 
     return {
         "message": "logged in",
